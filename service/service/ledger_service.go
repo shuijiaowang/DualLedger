@@ -25,7 +25,6 @@ type TxInput struct {
 	CategoryCode string
 	ResourceID   *uint64
 	Counterparty string
-	Tags         []string
 	Title        string
 	Note         string
 	Ext          model.JSONMap
@@ -61,7 +60,6 @@ func (s *LedgerService) Create(in TxInput) (*model.Transaction, error) {
 			CategoryCode: in.CategoryCode,
 			ResourceID:   in.ResourceID,
 			Counterparty: in.Counterparty,
-			Tags:         model.JSONStrings(in.Tags),
 			Title:        in.Title,
 			Note:         in.Note,
 			Ext:          in.Ext,

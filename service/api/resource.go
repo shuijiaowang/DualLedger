@@ -23,7 +23,6 @@ type resourceCreateReq struct {
 	AmortizeRule model.AmortizeRule `json:"amortize_rule" binding:"required"`
 	PurchaseAt   *time.Time         `json:"purchase_at"`
 	StartUseAt   *time.Time         `json:"start_use_at"`
-	Tags         []string           `json:"tags"`
 	Note         string             `json:"note"`
 	Ext          model.JSONMap      `json:"ext"`
 
@@ -58,7 +57,6 @@ func (h *ResourceApi) Create(c *gin.Context) {
 		AmortizeRule: req.AmortizeRule,
 		PurchaseAt:   purchase,
 		StartUseAt:   req.StartUseAt,
-		Tags:         req.Tags,
 		Note:         req.Note,
 		Ext:          req.Ext,
 		AccountID:    req.AccountID,

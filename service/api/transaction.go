@@ -25,7 +25,6 @@ type txCreateReq struct {
 	CategoryCode string        `json:"category_code"`
 	ResourceID   *uint64       `json:"resource_id"`
 	Counterparty string        `json:"counterparty"`
-	Tags         []string      `json:"tags"`
 	Title        string        `json:"title"`
 	Note         string        `json:"note"`
 	Ext          model.JSONMap `json:"ext"`
@@ -58,7 +57,6 @@ func (h *TransactionApi) Create(c *gin.Context) {
 		CategoryCode: req.CategoryCode,
 		ResourceID:   req.ResourceID,
 		Counterparty: req.Counterparty,
-		Tags:         req.Tags,
 		Title:        req.Title,
 		Note:         req.Note,
 		Ext:          req.Ext,

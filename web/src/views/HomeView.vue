@@ -61,6 +61,41 @@
           </el-table-column>
         </el-table>
       </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>资源（ACTIVE）</h3>
+          <router-link class="more" to="/record">去记一笔并关联资源 →</router-link>
+        </div>
+        <el-empty v-if="resources.length === 0" description="暂无进行中的资源" />
+        <el-table v-else :data="resources" size="small" stripe>
+          <el-table-column prop="name" label="资源" min-width="180" />
+          <el-table-column prop="amortize_rule.type" label="规则" width="130" />
+          <el-table-column label="标签" min-width="180">
+            <template #default="{ row }">
+              <el-tag v-for="t in resourceTags(row)" :key="t" size="small" style="margin-right: 4px">{{ t }}</el-tag>
+              <span v-if="resourceTags(row).length === 0" class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="剩余/总量" width="120">
+            <template #default="{ row }">
+              {{ qtyText(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="total_cost" label="总成本" width="110" align="right" />
+          <el-table-column label="操作" width="260">
+            <template #default="{ row }">
+              <template v-if="row.amortize_rule?.type === 'BY_COUNT'">
+                <el-button size="small" @click="changeQuickQty(row, -1)">-</el-button>
+                <el-input v-model.number="quickQtyMap[resourceId(row)]" size="small" style="width: 72px; margin: 0 6px" />
+                <el-button size="small" @click="changeQuickQty(row, 1)">+</el-button>
+                <el-button size="small" type="primary" link @click="quickPunch(row)">使用</el-button>
+              </template>
+              <span v-else class="muted">按天/周期资源请在权责视图自动计算</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </section>
     </main>
 
     <!-- 新增账户 -->
@@ -90,6 +125,7 @@ import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listAccounts, createAccount, rebuildBalance } from '@/api/account.js'
 import { listTransactions } from '@/api/transaction.js'
+import { listResources, punchResource } from '@/api/resource.js'
 import { signedAmount } from '@/utils/money.js'
 
 const userStore = useUserStore()
@@ -97,6 +133,9 @@ const displayNickname = computed(() => userStore.userInfo.nickname || '已登录
 
 const accounts = ref([])
 const recentTxs = ref([])
+const resources = ref([])
+const quickQtyMap = ref({})
+const resourceId = (r) => r?.id ?? r?.ID
 
 const showAccountDialog = ref(false)
 const accountForm = ref({ name: '', balance: '0.00', note: '' })
@@ -107,6 +146,11 @@ const load = async () => {
     accounts.value = accRes?.data || []
     const txRes = await listTransactions({ limit: 10 })
     recentTxs.value = txRes?.data?.rows || []
+    const resourceRes = await listResources({ statuses: 'ACTIVE' })
+    resources.value = resourceRes?.data || []
+    quickQtyMap.value = Object.fromEntries(
+      resources.value.map((r) => [resourceId(r), 1]).filter(([id]) => id !== undefined && id !== null)
+    )
   } catch {
     // 错误已由 request 拦截器提示
   }
@@ -121,6 +165,41 @@ const amountClass = (row) => ({
   neg: row.direction === 'OUT' && row.type !== 'TRANSFER'
 })
 const balanceClass = (v) => (Number(v) < 0 ? 'neg' : '')
+const resourceTags = (row) => {
+  const tags = row?.ext?.tags
+  return Array.isArray(tags) ? tags : []
+}
+const qtyText = (row) => {
+  const hasTotal = row?.total_qty !== null && row?.total_qty !== undefined
+  if (!hasTotal) return '-'
+  const remain = row?.remaining_qty ?? '-'
+  return `${remain}/${row.total_qty}`
+}
+const changeQuickQty = (row, delta) => {
+  const id = resourceId(row)
+  const cur = Number(quickQtyMap.value[id] || 1)
+  const next = cur + delta
+  quickQtyMap.value[id] = next < 1 ? 1 : next
+}
+const quickPunch = async (row) => {
+  const id = resourceId(row)
+  if (!id) {
+    ElMessage.error('资源 ID 无效')
+    return
+  }
+  const qty = Number(quickQtyMap.value[id] || 1)
+  if (!Number.isFinite(qty) || qty <= 0) {
+    ElMessage.warning('使用数量必须 > 0')
+    return
+  }
+  try {
+    await punchResource(id, { qty })
+    ElMessage.success(`已记录使用 ${qty}${row.unit || ''}`)
+    await load()
+  } catch {
+    /* noop */
+  }
+}
 
 const saveAccount = async () => {
   if (!accountForm.value.name) {
@@ -212,4 +291,5 @@ const logout = async () => {
 .more { color: #409eff; text-decoration: none; font-size: 14px; }
 .pos { color: #42b883; font-weight: 500; }
 .neg { color: #f56c6c; font-weight: 500; }
+.muted { color: #909399; }
 </style>

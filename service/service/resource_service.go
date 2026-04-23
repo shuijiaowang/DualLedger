@@ -25,7 +25,6 @@ type CreateResourceInput struct {
 	AmortizeRule model.AmortizeRule
 	PurchaseAt   time.Time
 	StartUseAt   *time.Time
-	Tags         []string
 	Note         string
 	Ext          model.JSONMap
 
@@ -78,7 +77,6 @@ func (s *ResourceService) Create(in CreateResourceInput) (*CreateResult, error) 
 			Status:       model.ResStatusActive,
 			PurchaseAt:   in.PurchaseAt,
 			StartUseAt:   in.StartUseAt,
-			Tags:         model.JSONStrings(in.Tags),
 			Note:         in.Note,
 			Ext:          in.Ext,
 		}
@@ -91,6 +89,10 @@ func (s *ResourceService) Create(in CreateResourceInput) (*CreateResult, error) 
 			if in.AccountID == 0 {
 				return errors.New("关联交易必须指定 account_id")
 			}
+			txTitle := in.TxTitle
+			if txTitle == "" {
+				txTitle = in.Name
+			}
 			direction := model.DefaultDirectionFor(in.TxType)
 			t := &model.Transaction{
 				UserID:       in.UserID,
@@ -101,8 +103,8 @@ func (s *ResourceService) Create(in CreateResourceInput) (*CreateResult, error) 
 				AccountID:    in.AccountID,
 				CategoryCode: in.CategoryCode,
 				ResourceID:   pu64(uint64(r.ID)),
-				Tags:         model.JSONStrings(in.Tags),
-				Title:        in.TxTitle,
+				Title:        txTitle,
+				Ext:          in.Ext,
 			}
 			if err := dao.CreateTransaction(dbTx, t); err != nil {
 				return err
@@ -126,7 +128,7 @@ type PunchInput struct {
 	ResourceID uint64
 	Qty        float64
 	AccrueAt   time.Time
-	Tags       []string // 覆盖默认继承；nil 表示继承 resource.tags
+	Tags       []string // 覆盖默认继承；nil 表示继承 resource.ext.tags
 	Note       string
 	MarkEnded  bool // 这次打卡后是否直接结束（已消耗完）
 }
@@ -178,7 +180,7 @@ func (s *ResourceService) Punch(in PunchInput) (*model.AccrualEntry, error) {
 
 		tags := in.Tags
 		if tags == nil {
-			tags = append([]string(nil), r.Tags...)
+			tags = tagsFromExt(r.Ext)
 		}
 		e := &model.AccrualEntry{
 			UserID:       in.UserID,
@@ -268,7 +270,7 @@ func (s *ResourceService) End(in EndResourceInput) (*model.Resource, *model.Accr
 					Unit:         r.Unit,
 					AccrueAt:     in.AccrueAt,
 					Source:       model.AccrualEndSettle,
-					Tags:         model.JSONStrings(append(append([]string(nil), r.Tags...), "损失")),
+					Tags:         model.JSONStrings(append(tagsFromExt(r.Ext), "损失")),
 					Note:         in.Note,
 				}
 				if err := dao.CreateAccrualEntry(tx, e); err != nil {

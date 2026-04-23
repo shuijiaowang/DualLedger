@@ -233,7 +233,7 @@ type AmortizeRule struct {
 	Days            *int     `json:"days,omitempty"`
 	Start           *string  `json:"start,omitempty"`             // YYYY-MM-DD，缺省取 resource.start_use_at
 	TotalQty        *float64 `json:"total_qty,omitempty"`         // BY_COUNT
-	ExpectedDays    *int     `json:"expected_days,omitempty"`     // DYNAMIC_BY_DAY
+	ExpectedDays    *int     `json:"expected_days,omitempty"`     // DYNAMIC_BY_DAY，可空（空=默认到今天）
 	IncludeStartGap *bool    `json:"include_start_gap,omitempty"` // FIXED_PERIOD
 }
 
@@ -279,8 +279,8 @@ func (r AmortizeRule) Validate() error {
 			return errors.New("BY_COUNT 规则缺少 total_qty（>0）")
 		}
 	case AmortizeDynamicByDay:
-		if r.ExpectedDays == nil || *r.ExpectedDays <= 0 {
-			return errors.New("DYNAMIC_BY_DAY 规则缺少 expected_days（>0）")
+		if r.ExpectedDays != nil && *r.ExpectedDays <= 0 {
+			return errors.New("DYNAMIC_BY_DAY 规则中 expected_days 必须 > 0")
 		}
 	case "":
 		return errors.New("amortize_rule.type 不能为空")

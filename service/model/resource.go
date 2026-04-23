@@ -21,7 +21,6 @@ type Resource struct {
 	PurchaseAt   time.Time    `json:"purchase_at" gorm:"not null;comment:购买时间"`
 	StartUseAt   *time.Time   `json:"start_use_at" gorm:"index:idx_resource_user_status_start,priority:3;comment:开始使用时间"`
 	EndAt        *time.Time   `json:"end_at" gorm:"comment:结束时间"`
-	Tags         JSONStrings  `json:"tags" gorm:"type:json;comment:资源级标签"`
 	Note         string       `json:"note" gorm:"type:varchar(512)"`
 	Ext          JSONMap      `json:"ext" gorm:"type:json;comment:扩展字段"`
 }

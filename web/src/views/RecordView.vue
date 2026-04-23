@@ -129,7 +129,7 @@
             </el-form-item>
 
             <el-form-item v-if="isDynamicByDay" label="预计天数">
-              <el-input v-model="form.expected_days" placeholder="如：90" />
+              <el-input v-model="form.expected_days" placeholder="可空；为空默认按今天" />
             </el-form-item>
           </template>
 
@@ -249,8 +249,11 @@ const buildAccrualErrors = () => {
     if (!Number.isFinite(qty) || qty <= 0) errs.push('按次数请填写 > 0 的总量')
   }
   if (isDynamicByDay.value) {
-    const days = Number(form.value.expected_days)
-    if (!Number.isFinite(days) || days <= 0) errs.push('动态按天请填写 > 0 的预计天数')
+    const raw = form.value.expected_days
+    if (raw !== null && raw !== undefined && raw !== '') {
+      const days = Number(raw)
+      if (!Number.isFinite(days) || days <= 0) errs.push('动态按天预计天数若填写，必须 > 0')
+    }
   }
   return errs
 }
@@ -267,6 +270,14 @@ const getFixedPeriodDays = () => {
   return Math.floor(ms / (24 * 60 * 60 * 1000)) + 1
 }
 
+const toISODateTime = (v) => {
+  if (!v) return undefined
+  if (v instanceof Date) return v.toISOString()
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return undefined
+  return d.toISOString()
+}
+
 const buildAmortizeRule = () => {
   const rule = { type: form.value.amortize_type }
   if (isFixedPeriod.value) {
@@ -280,7 +291,11 @@ const buildAmortizeRule = () => {
   } else if (isByCount.value) {
     rule.total_qty = Number(form.value.total_qty)
   } else if (isDynamicByDay.value) {
-    rule.expected_days = Number(form.value.expected_days)
+    const raw = form.value.expected_days
+    if (raw !== null && raw !== undefined && raw !== '') {
+      const days = Number(raw)
+      if (Number.isFinite(days) && days > 0) rule.expected_days = days
+    }
   }
   return rule
 }
@@ -311,10 +326,10 @@ const submit = async () => {
         purchase_at: purchaseAt,
         start_use_at:
           Array.isArray(form.value.period_range) && form.value.period_range.length === 2
-            ? form.value.period_range[0]
+            ? toISODateTime(form.value.period_range[0])
             : undefined,
-        tags: form.value.tags,
         note: form.value.note,
+        ext: form.value.tags?.length ? { tags: form.value.tags } : undefined,
         account_id: form.value.account_id,
         tx_type: form.value.type,
         tx_title: form.value.title || form.value.resource_name
@@ -328,6 +343,8 @@ const submit = async () => {
     const payload = { ...form.value }
     if (payload.occur_at instanceof Date) payload.occur_at = payload.occur_at.toISOString()
     if (payload.type !== 'TRANSFER') delete payload.to_account_id
+    payload.ext = payload.tags?.length ? { tags: payload.tags } : undefined
+    delete payload.tags
     delete payload.enable_accrual
     delete payload.resource_name
     delete payload.amortize_type

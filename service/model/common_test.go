@@ -71,6 +71,10 @@ func TestAmortizeRuleValidate(t *testing.T) {
 	if err := ok.Validate(); err != nil {
 		t.Fatalf("valid DYNAMIC rejected: %v", err)
 	}
+	ok = AmortizeRule{Type: AmortizeDynamicByDay}
+	if err := ok.Validate(); err != nil {
+		t.Fatalf("DYNAMIC without expected_days should be valid: %v", err)
+	}
 	if err := (AmortizeRule{Type: "UNKNOWN"}).Validate(); err == nil {
 		t.Fatal("unknown type should fail")
 	}

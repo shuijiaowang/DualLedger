@@ -118,7 +118,7 @@ func (s *AccrualViewService) Query(q ViewQuery) ([]ViewEntry, error) {
 				Amount:        signedAmount,
 				CategoryCode:  t.CategoryCode,
 				TransactionID: &id,
-				Tags:          []string(t.Tags),
+				Tags:          tagsFromExt(t.Ext),
 				Title:         t.Title,
 				Note:          t.Note,
 			})
@@ -159,10 +159,12 @@ func generateDynamicRows(r *model.Resource, from, to time.Time) []ViewEntry {
 		}
 		naturalEnd = start.AddDate(0, 0, *r.AmortizeRule.Days)
 	case model.AmortizeDynamicByDay:
-		if r.AmortizeRule.ExpectedDays == nil {
-			return nil
+		if r.AmortizeRule.ExpectedDays != nil && *r.AmortizeRule.ExpectedDays > 0 {
+			naturalEnd = start.AddDate(0, 0, *r.AmortizeRule.ExpectedDays)
+		} else {
+			// expected_days 为空时，默认摊到今天（含今天）
+			naturalEnd = dayStart(time.Now()).AddDate(0, 0, 1)
 		}
-		naturalEnd = start.AddDate(0, 0, *r.AmortizeRule.ExpectedDays)
 	}
 
 	effectiveEnd := naturalEnd
@@ -189,10 +191,14 @@ func generateDynamicRows(r *model.Resource, from, to time.Time) []ViewEntry {
 	case model.AmortizeFixedPeriod:
 		days = *r.AmortizeRule.Days
 	case model.AmortizeDynamicByDay:
-		days = *r.AmortizeRule.ExpectedDays
+		if r.AmortizeRule.ExpectedDays != nil && *r.AmortizeRule.ExpectedDays > 0 {
+			days = *r.AmortizeRule.ExpectedDays
+		} else {
+			days = int(dayStart(time.Now()).Sub(start).Hours()/24) + 1
+		}
 	}
 	if days <= 0 {
-		return nil
+		days = 1
 	}
 	totalFloat := parseFloat(string(r.TotalCost))
 	perDay := totalFloat / float64(days)
@@ -207,7 +213,7 @@ func generateDynamicRows(r *model.Resource, from, to time.Time) []ViewEntry {
 			Amount:       perDayStr,
 			CategoryCode: r.CategoryCode,
 			ResourceID:   &rid,
-			Tags:         []string(r.Tags),
+			Tags:         tagsFromExt(r.Ext),
 			Note:         fmt.Sprintf("规则动态[%s] %s", r.AmortizeRule.Type, r.Name),
 			Title:        r.Name,
 		})
