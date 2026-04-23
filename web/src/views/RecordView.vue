@@ -91,6 +91,48 @@
             <el-input v-model="form.note" type="textarea" :rows="2" />
           </el-form-item>
 
+          <el-divider />
+          <el-form-item label="权责设置" v-if="canConfigureAccrual">
+            <el-switch v-model="form.enable_accrual" active-text="启用规则（如房租按期间分摊）" />
+          </el-form-item>
+
+          <template v-if="form.enable_accrual && canConfigureAccrual">
+            <el-form-item label="资源名称">
+              <el-input v-model="form.resource_name" placeholder="如：房租（2026-05）" />
+            </el-form-item>
+
+            <el-form-item label="规则类型">
+              <el-select v-model="form.amortize_type">
+                <el-option label="固定周期（推荐：房租）" value="FIXED_PERIOD" />
+                <el-option label="按次数（如 10 次课）" value="BY_COUNT" />
+                <el-option label="动态按天（预计天数）" value="DYNAMIC_BY_DAY" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item v-if="isFixedPeriod" label="时间范围">
+              <el-date-picker
+                v-model="form.period_range"
+                type="daterange"
+                value-format="YYYY-MM-DD"
+                range-separator="→"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+              />
+            </el-form-item>
+
+            <el-form-item v-if="isFixedPeriod && !(form.period_range && form.period_range.length === 2)" label="周期天数">
+              <el-input v-model="form.amortize_days" placeholder="不选范围时手动填写天数，如 30" />
+            </el-form-item>
+
+            <el-form-item v-if="isByCount" label="总量">
+              <el-input v-model="form.total_qty" placeholder="如：10（次/个）" />
+            </el-form-item>
+
+            <el-form-item v-if="isDynamicByDay" label="预计天数">
+              <el-input v-model="form.expected_days" placeholder="如：90" />
+            </el-form-item>
+          </template>
+
           <el-alert
             v-if="formErrors.length"
             type="error"
@@ -116,6 +158,7 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { listAccounts } from '@/api/account.js'
 import { createTransaction } from '@/api/transaction.js'
+import { createResource } from '@/api/resource.js'
 import { useMetaStore } from '@/stores/meta.js'
 import { defaultDirection, validateTxForm } from '@/utils/money.js'
 
@@ -137,7 +180,16 @@ const initialForm = () => ({
   counterparty: '',
   title: '',
   tags: [],
-  note: ''
+  note: '',
+  enable_accrual: false,
+  resource_name: '',
+  amortize_type: 'FIXED_PERIOD',
+  period_range: [],
+  amortize_days: null,
+  start_use_at: null,
+  total_qty: null,
+  expected_days: null,
+  include_start_gap: false
 })
 const form = ref(initialForm())
 
@@ -161,9 +213,77 @@ const onTypeChange = () => {
   if (d) form.value.direction = d
   form.value.to_account_id = null
   form.value.category_code = ''
+  if (!canConfigureAccrual.value) form.value.enable_accrual = false
 }
 
-const formErrors = computed(() => validateTxForm(form.value))
+const canConfigureAccrual = computed(() => ['EXPENSE', 'INCOME'].includes(form.value.type))
+const isFixedPeriod = computed(() => form.value.amortize_type === 'FIXED_PERIOD')
+const isByCount = computed(() => form.value.amortize_type === 'BY_COUNT')
+const isDynamicByDay = computed(() => form.value.amortize_type === 'DYNAMIC_BY_DAY')
+
+const buildAccrualErrors = () => {
+  const errs = []
+  if (!form.value.enable_accrual) return errs
+  if (!canConfigureAccrual.value) {
+    errs.push('仅收入/支出支持权责规则')
+    return errs
+  }
+  if (!form.value.resource_name?.trim()) errs.push('请填写资源名称')
+  if (isFixedPeriod.value) {
+    if (Array.isArray(form.value.period_range) && form.value.period_range.length === 2) {
+      const [start, end] = form.value.period_range
+      const s = new Date(start)
+      const e = new Date(end)
+      if (!(s instanceof Date) || Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+        errs.push('固定周期的起止日期格式不正确')
+      } else if (e < s) {
+        errs.push('固定周期结束日期不能早于开始日期')
+      }
+    } else {
+      const days = Number(form.value.amortize_days)
+      if (!Number.isFinite(days) || days <= 0) errs.push('固定周期请填写 > 0 的天数')
+    }
+  }
+  if (isByCount.value) {
+    const qty = Number(form.value.total_qty)
+    if (!Number.isFinite(qty) || qty <= 0) errs.push('按次数请填写 > 0 的总量')
+  }
+  if (isDynamicByDay.value) {
+    const days = Number(form.value.expected_days)
+    if (!Number.isFinite(days) || days <= 0) errs.push('动态按天请填写 > 0 的预计天数')
+  }
+  return errs
+}
+const formErrors = computed(() => [...validateTxForm(form.value), ...buildAccrualErrors()])
+
+const getFixedPeriodDays = () => {
+  if (!Array.isArray(form.value.period_range) || form.value.period_range.length !== 2) return null
+  const [start, end] = form.value.period_range
+  const s = new Date(start)
+  const e = new Date(end)
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return null
+  const ms = e.getTime() - s.getTime()
+  if (ms < 0) return null
+  return Math.floor(ms / (24 * 60 * 60 * 1000)) + 1
+}
+
+const buildAmortizeRule = () => {
+  const rule = { type: form.value.amortize_type }
+  if (isFixedPeriod.value) {
+    const calcDays = getFixedPeriodDays()
+    const days = calcDays ?? Number(form.value.amortize_days)
+    rule.days = Math.max(1, Number(days))
+    if (Array.isArray(form.value.period_range) && form.value.period_range.length === 2) {
+      rule.start = form.value.period_range[0]
+    }
+    if (form.value.include_start_gap) rule.include_start_gap = true
+  } else if (isByCount.value) {
+    rule.total_qty = Number(form.value.total_qty)
+  } else if (isDynamicByDay.value) {
+    rule.expected_days = Number(form.value.expected_days)
+  }
+  return rule
+}
 
 const reset = () => {
   form.value = initialForm()
@@ -171,18 +291,52 @@ const reset = () => {
 }
 
 const submit = async () => {
-  const errs = validateTxForm(form.value)
+  const errs = formErrors.value
   if (errs.length) {
     ElMessage.error(errs.join('；'))
     return
   }
   submitting.value = true
   try {
-    const payload = { ...form.value }
-    if (payload.occur_at instanceof Date) {
-      payload.occur_at = payload.occur_at.toISOString()
+    if (form.value.enable_accrual && canConfigureAccrual.value) {
+      const purchaseAt =
+        form.value.occur_at instanceof Date ? form.value.occur_at.toISOString() : form.value.occur_at
+      const payload = {
+        name: form.value.resource_name.trim(),
+        category_code: form.value.category_code,
+        unit: isByCount.value ? '次' : '天',
+        total_qty: isByCount.value ? Number(form.value.total_qty) : undefined,
+        total_cost: form.value.amount,
+        amortize_rule: buildAmortizeRule(),
+        purchase_at: purchaseAt,
+        start_use_at:
+          Array.isArray(form.value.period_range) && form.value.period_range.length === 2
+            ? form.value.period_range[0]
+            : undefined,
+        tags: form.value.tags,
+        note: form.value.note,
+        account_id: form.value.account_id,
+        tx_type: form.value.type,
+        tx_title: form.value.title || form.value.resource_name
+      }
+      await createResource(payload)
+      ElMessage.success('已记录并设置权责规则')
+      router.push('/ledger')
+      return
     }
+
+    const payload = { ...form.value }
+    if (payload.occur_at instanceof Date) payload.occur_at = payload.occur_at.toISOString()
     if (payload.type !== 'TRANSFER') delete payload.to_account_id
+    delete payload.enable_accrual
+    delete payload.resource_name
+    delete payload.amortize_type
+    delete payload.period_range
+    delete payload.amortize_days
+    delete payload.start_use_at
+    delete payload.total_qty
+    delete payload.expected_days
+    delete payload.include_start_gap
     await createTransaction(payload)
     ElMessage.success('已记录')
     router.push('/ledger')
