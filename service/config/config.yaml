@@ -1,0 +1,17 @@
+
+server:
+  port: 7789
+
+mysql:
+  port: "3306"
+  config: charset=utf8mb4&parseTime=True&loc=Local
+  dbname: go_vue_demo
+  username: root
+  password: "123456"
+  path: 127.0.0.1
+
+jwt:
+  secret: "replace-with-your-strong-secret"
+  issuer: "GoVueDemo"
+  expire_hours: 240
+  refresh_before_minutes: 30
