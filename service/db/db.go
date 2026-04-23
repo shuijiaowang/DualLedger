@@ -53,7 +53,13 @@ func InitDB() error {
 		return fmt.Errorf("数据库连接失败: %w", err)
 	}
 
-	if err := DB.AutoMigrate(&model.User{}, &model.Example{}); err != nil {
+	if err := DB.AutoMigrate(
+		&model.User{},
+		&model.Account{},
+		&model.Resource{},
+		&model.Transaction{},
+		&model.AccrualEntry{},
+	); err != nil {
 		return fmt.Errorf("模型迁移失败: %w", err)
 	}
 
