@@ -71,9 +71,9 @@
             <template #date-cell="{ data }">
               <div class="day-cell" @click="jumpToDay(data.day)">
                 <div class="day-num">{{ data.day.slice(-2) }}</div>
-                <div class="day-sum">总 {{ dayStat(data.day).total }}</div>
-                <div class="day-pos">+ {{ dayStat(data.day).pos }}</div>
-                <div class="day-neg">- {{ dayStat(data.day).neg }}</div>
+                <div v-if="showDayTotal(data.day)" class="day-sum">总 {{ dayStat(data.day).total }}</div>
+                <div v-if="showDayPos(data.day)" class="day-pos">+ {{ dayStat(data.day).pos }}</div>
+                <div v-if="showDayNeg(data.day)" class="day-neg">- {{ dayStat(data.day).neg }}</div>
               </div>
             </template>
           </el-calendar>
@@ -114,9 +114,9 @@
             <template #date-cell="{ data }">
               <div class="day-cell" @click="jumpToDay(data.day)">
                 <div class="day-num">{{ data.day.slice(-2) }}</div>
-                <div class="day-sum">总 {{ dayStat(data.day).total }}</div>
-                <div class="day-pos">+ {{ dayStat(data.day).pos }}</div>
-                <div class="day-neg">- {{ dayStat(data.day).neg }}</div>
+                <div v-if="showDayTotal(data.day)" class="day-sum">总 {{ dayStat(data.day).total }}</div>
+                <div v-if="showDayPos(data.day)" class="day-pos">+ {{ dayStat(data.day).pos }}</div>
+                <div v-if="showDayNeg(data.day)" class="day-neg">- {{ dayStat(data.day).neg }}</div>
               </div>
             </template>
           </el-calendar>
@@ -272,8 +272,34 @@ const dayStat = (day) => {
   }
 }
 
+const dayStatNumber = (day) => {
+  const stat = dayStats.value.get(day) || { pos: 0, neg: 0 }
+  return {
+    pos: Number(stat.pos || 0),
+    neg: Number(stat.neg || 0),
+    total: Number(stat.pos || 0) - Number(stat.neg || 0)
+  }
+}
+
+const showDayTotal = (day) => dayStatNumber(day).total !== 0
+const showDayPos = (day) => dayStatNumber(day).pos !== 0
+const showDayNeg = (day) => dayStatNumber(day).neg !== 0
+
+const formatDateLocal = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const nextDay = (day) => {
+  const d = new Date(`${day}T00:00:00`)
+  d.setDate(d.getDate() + 1)
+  return formatDateLocal(d)
+}
+
 const jumpToDay = async (day) => {
-  range.value = [day, day]
+  range.value = [day, nextDay(day)]
   displayMode.value = 'table'
   await reload()
 }
