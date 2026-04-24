@@ -1,12 +1,31 @@
 package service
 
-import "SService/model"
+import (
+	"SService/dao"
+	"SService/model"
+)
 
 type MetaService struct{}
 
 // Categories 返回分类静态常量（MVP 阶段用户自定义暂不开放）
 func (s *MetaService) Categories() []model.Category {
-	return model.PresetCategories
+	rows, err := dao.ListCategories()
+	if err != nil {
+		return model.PresetCategories
+	}
+	out := make([]model.Category, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, model.Category{
+			Code:       r.Code,
+			ParentCode: r.ParentCode,
+			Name:       r.Name,
+			Kind:       r.Kind,
+			Icon:       r.Icon,
+			Sort:       r.Sort,
+			Source:     r.Source,
+		})
+	}
+	return out
 }
 
 // Tags 返回标签建议词

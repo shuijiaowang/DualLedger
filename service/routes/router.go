@@ -42,6 +42,12 @@ func SetupRouter() *gin.Engine {
 		apiGroup.DELETE("/accounts/:id", accountApi.Delete)
 		apiGroup.POST("/accounts/:id/rebuild-balance", accountApi.RebuildBalance)
 
+		categoryApi := api.CategoryApi{}
+		apiGroup.GET("/categories", categoryApi.List)
+		apiGroup.POST("/categories", categoryApi.Create)
+		apiGroup.PUT("/categories/:id", categoryApi.Update)
+		apiGroup.DELETE("/categories/:id", categoryApi.Delete)
+
 		txApi := api.TransactionApi{}
 		apiGroup.GET("/transactions", txApi.List)
 		apiGroup.POST("/transactions", txApi.Create)

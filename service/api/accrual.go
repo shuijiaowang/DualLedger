@@ -7,6 +7,7 @@ import (
 	"SService/util"
 	"SService/util/response"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -60,6 +61,7 @@ func (h *AccrualApi) Create(c *gin.Context) {
 		TransactionID *uint64     `json:"transaction_id"`
 		ResourceID    *uint64     `json:"resource_id"`
 		CategoryCode  string      `json:"category_code"`
+		CategoryName  string      `json:"category_name"`
 		Amount        model.Money `json:"amount" binding:"required"`
 		Qty           *float64    `json:"qty"`
 		Unit          string      `json:"unit"`
@@ -76,6 +78,26 @@ func (h *AccrualApi) Create(c *gin.Context) {
 		response.FailWithMessage("非法 source", c)
 		return
 	}
+	categoryCode := strings.TrimSpace(req.CategoryCode)
+	if categoryCode == "" && strings.TrimSpace(req.CategoryName) != "" {
+		cat, err := dao.GetCategoryByName(strings.TrimSpace(req.CategoryName))
+		if err != nil {
+			response.FailWithMessage("未知分类名称: "+req.CategoryName, c)
+			return
+		}
+		categoryCode = cat.Code
+	}
+	if categoryCode != "" {
+		ok, err := dao.CategoryCodeExists(categoryCode)
+		if err != nil {
+			response.FailWithMessage("分类校验失败: "+err.Error(), c)
+			return
+		}
+		if !ok {
+			response.FailWithMessage("未知分类: "+categoryCode, c)
+			return
+		}
+	}
 	accrueAt := time.Now()
 	if req.AccrueAt != nil {
 		accrueAt = *req.AccrueAt
@@ -84,7 +106,7 @@ func (h *AccrualApi) Create(c *gin.Context) {
 		UserID:        uint64(claims.ID),
 		TransactionID: req.TransactionID,
 		ResourceID:    req.ResourceID,
-		CategoryCode:  req.CategoryCode,
+		CategoryCode:  categoryCode,
 		Amount:        req.Amount,
 		Qty:           req.Qty,
 		Unit:          req.Unit,

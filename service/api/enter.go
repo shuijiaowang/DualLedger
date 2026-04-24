@@ -10,6 +10,7 @@ type ApiGroup struct {
 	ResourceApi
 	AccrualApi
 	MetaApi
+	CategoryApi
 }
 
 var (
@@ -19,4 +20,5 @@ var (
 	resourceService = service.ResourceService{}
 	accrualViewSvc  = service.AccrualViewService{}
 	metaService     = service.MetaService{}
+	categoryService = service.CategoryService{}
 )

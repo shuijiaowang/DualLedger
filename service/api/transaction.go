@@ -7,6 +7,7 @@ import (
 	"SService/util"
 	"SService/util/response"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,7 @@ type txCreateReq struct {
 	AccountID    uint64        `json:"account_id" binding:"required"`
 	ToAccountID  *uint64       `json:"to_account_id"`
 	CategoryCode string        `json:"category_code"`
+	CategoryName string        `json:"category_name"`
 	ResourceID   *uint64       `json:"resource_id"`
 	Counterparty string        `json:"counterparty"`
 	Title        string        `json:"title"`
@@ -46,6 +48,15 @@ func (h *TransactionApi) Create(c *gin.Context) {
 	if req.OccurAt != nil {
 		occur = *req.OccurAt
 	}
+	categoryCode := strings.TrimSpace(req.CategoryCode)
+	if categoryCode == "" && strings.TrimSpace(req.CategoryName) != "" {
+		cat, err := dao.GetCategoryByName(strings.TrimSpace(req.CategoryName))
+		if err != nil {
+			response.FailWithMessage("未知分类名称: "+req.CategoryName, c)
+			return
+		}
+		categoryCode = cat.Code
+	}
 	in := service.TxInput{
 		UserID:       uint64(claims.ID),
 		Type:         req.Type,
@@ -54,7 +65,7 @@ func (h *TransactionApi) Create(c *gin.Context) {
 		Amount:       req.Amount,
 		AccountID:    req.AccountID,
 		ToAccountID:  req.ToAccountID,
-		CategoryCode: req.CategoryCode,
+		CategoryCode: categoryCode,
 		ResourceID:   req.ResourceID,
 		Counterparty: req.Counterparty,
 		Title:        req.Title,

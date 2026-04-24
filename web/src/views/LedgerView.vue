@@ -38,7 +38,9 @@
               <template #default="{ row }">{{ fmt(row.occur_at) }}</template>
             </el-table-column>
             <el-table-column prop="type" label="类型" width="90" />
-            <el-table-column prop="category_code" label="分类" width="180" />
+            <el-table-column label="分类" width="180">
+              <template #default="{ row }">{{ categoryLabel(row.category_code) }}</template>
+            </el-table-column>
             <el-table-column prop="title" label="描述" />
             <el-table-column prop="counterparty" label="对手方" width="120" />
             <el-table-column label="账户" width="140">
@@ -76,7 +78,9 @@
                 <el-tag :type="sourceTag(row.source)" size="small">{{ sourceLabel(row.source) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="category_code" label="分类" width="180" />
+            <el-table-column label="分类" width="180">
+              <template #default="{ row }">{{ categoryLabel(row.category_code) }}</template>
+            </el-table-column>
             <el-table-column label="描述">
               <template #default="{ row }">{{ row.title || row.note }}</template>
             </el-table-column>
@@ -107,18 +111,22 @@ import { listTransactions, deleteTransaction } from '@/api/transaction.js'
 import { listAccounts } from '@/api/account.js'
 import { accrualView } from '@/api/accrual.js'
 import { signedAmount, isCashflowOnly, normalizeAmount } from '@/utils/money.js'
+import { useMetaStore } from '@/stores/meta.js'
 
 const viewMode = ref('cashflow')
 const range = ref([])
 const includeCashOnly = ref(false)
 
 const accounts = ref([])
+const metaStore = useMetaStore()
 const cashRows = ref([])
 const accrualRows = ref([])
 const total = ref(0)
 
 const fmt = (s) => (s ? String(s).slice(0, 16).replace('T', ' ') : '')
 const accountName = (id) => accounts.value.find((a) => a.id === id)?.name || `#${id ?? '-'}`
+const categoryLabel = (code) =>
+  metaStore.categories.find((c) => c.code === code)?.name || code || '-'
 const signed = (row) => signedAmount(row)
 const amountClass = (row) => ({
   pos: row.direction === 'IN' && row.type !== 'TRANSFER',
@@ -197,6 +205,7 @@ const del = async (row) => {
 }
 
 onMounted(async () => {
+  await metaStore.load()
   try {
     const res = await listAccounts({ include_archived: true })
     accounts.value = res?.data || []

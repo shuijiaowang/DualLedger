@@ -25,6 +25,12 @@ const router = createRouter({
       name: 'ledger',
       component: () => import('@/views/LedgerView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/categories',
+      name: 'categories',
+      component: () => import('@/views/CategoryView.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

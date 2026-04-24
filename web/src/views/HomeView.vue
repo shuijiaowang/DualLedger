@@ -9,6 +9,7 @@
         <router-link to="/home">工作台</router-link>
         <router-link to="/record">记一笔</router-link>
         <router-link to="/ledger">流水</router-link>
+        <router-link to="/categories">分类</router-link>
       </nav>
       <div class="nav-right">
         <span class="nickname">{{ displayNickname }}</span>
@@ -52,7 +53,9 @@
             <template #default="{ row }">{{ formatDate(row.occur_at) }}</template>
           </el-table-column>
           <el-table-column prop="type" label="类型" width="90" />
-          <el-table-column prop="category_code" label="分类" />
+          <el-table-column label="分类">
+            <template #default="{ row }">{{ categoryLabel(row.category_code) }}</template>
+          </el-table-column>
           <el-table-column prop="title" label="备注" />
           <el-table-column label="金额" width="120" align="right">
             <template #default="{ row }">
@@ -86,10 +89,7 @@
           <el-table-column label="操作" width="260">
             <template #default="{ row }">
               <template v-if="row.amortize_rule?.type === 'BY_COUNT'">
-                <el-button size="small" @click="changeQuickQty(row, -1)">-</el-button>
-                <el-input v-model.number="quickQtyMap[resourceId(row)]" size="small" style="width: 72px; margin: 0 6px" />
-                <el-button size="small" @click="changeQuickQty(row, 1)">+</el-button>
-                <el-button size="small" type="primary" link @click="quickPunch(row)">使用</el-button>
+                <el-button size="small" type="primary" @click="quickPunch(row)">记录使用</el-button>
               </template>
               <span v-else class="muted">按天/周期资源请在权责视图自动计算</span>
             </template>
@@ -127,15 +127,18 @@ import { listAccounts, createAccount, rebuildBalance } from '@/api/account.js'
 import { listTransactions } from '@/api/transaction.js'
 import { listResources, punchResource } from '@/api/resource.js'
 import { signedAmount } from '@/utils/money.js'
+import { useMetaStore } from '@/stores/meta.js'
 
 const userStore = useUserStore()
+const metaStore = useMetaStore()
 const displayNickname = computed(() => userStore.userInfo.nickname || '已登录用户')
 
 const accounts = ref([])
 const recentTxs = ref([])
 const resources = ref([])
-const quickQtyMap = ref({})
 const resourceId = (r) => r?.id ?? r?.ID
+const categoryLabel = (code) =>
+  metaStore.categories.find((c) => c.code === code)?.name || code || '-'
 
 const showAccountDialog = ref(false)
 const accountForm = ref({ name: '', balance: '0.00', note: '' })
@@ -148,15 +151,13 @@ const load = async () => {
     recentTxs.value = txRes?.data?.rows || []
     const resourceRes = await listResources({ statuses: 'ACTIVE' })
     resources.value = resourceRes?.data || []
-    quickQtyMap.value = Object.fromEntries(
-      resources.value.map((r) => [resourceId(r), 1]).filter(([id]) => id !== undefined && id !== null)
-    )
   } catch {
     // 错误已由 request 拦截器提示
   }
 }
 
 onMounted(load)
+onMounted(() => metaStore.load())
 
 const formatDate = (s) => (s ? String(s).slice(0, 16).replace('T', ' ') : '')
 const signed = (row) => signedAmount(row)
@@ -175,26 +176,15 @@ const qtyText = (row) => {
   const remain = row?.remaining_qty ?? '-'
   return `${remain}/${row.total_qty}`
 }
-const changeQuickQty = (row, delta) => {
-  const id = resourceId(row)
-  const cur = Number(quickQtyMap.value[id] || 1)
-  const next = cur + delta
-  quickQtyMap.value[id] = next < 1 ? 1 : next
-}
 const quickPunch = async (row) => {
   const id = resourceId(row)
   if (!id) {
     ElMessage.error('资源 ID 无效')
     return
   }
-  const qty = Number(quickQtyMap.value[id] || 1)
-  if (!Number.isFinite(qty) || qty <= 0) {
-    ElMessage.warning('使用数量必须 > 0')
-    return
-  }
   try {
-    await punchResource(id, { qty })
-    ElMessage.success(`已记录使用 ${qty}${row.unit || ''}`)
+    await punchResource(id, { qty: 1 })
+    ElMessage.success(`已记录使用 1${row.unit || ''}`)
     await load()
   } catch {
     /* noop */

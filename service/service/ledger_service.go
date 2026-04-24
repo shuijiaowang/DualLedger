@@ -119,8 +119,14 @@ func validateTxInput(in *TxInput) error {
 	if in.AccountID == 0 {
 		return errors.New("account_id 必填")
 	}
-	if in.CategoryCode != "" && !model.CategoryExists(in.CategoryCode) {
-		return fmt.Errorf("未知 category_code: %s", in.CategoryCode)
+	if in.CategoryCode != "" {
+		ok, err := dao.CategoryCodeExists(in.CategoryCode)
+		if err != nil {
+			return fmt.Errorf("校验 category_code 失败: %w", err)
+		}
+		if !ok {
+			return fmt.Errorf("未知 category_code: %s", in.CategoryCode)
+		}
 	}
 	// TRANSFER：必须有 to_account_id 且与 account_id 不同
 	if in.Type == model.TxTransfer {

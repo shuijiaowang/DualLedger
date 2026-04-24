@@ -60,13 +60,13 @@
           </el-form-item>
 
           <el-form-item label="分类">
-            <el-select v-model="form.category_code" placeholder="选择分类" clearable filterable>
+            <el-select v-model="form.category_name" placeholder="选择分类" clearable filterable>
               <el-option-group v-for="p in filteredCategoryTree" :key="p.code" :label="p.name">
-                <el-option :value="p.code" :label="p.name" />
+                <el-option :value="p.name" :label="p.name" />
                 <el-option
                   v-for="child in p.children"
                   :key="child.code"
-                  :value="child.code"
+                  :value="child.name"
                   :label="'　' + child.name"
                 />
               </el-option-group>
@@ -176,7 +176,7 @@ const initialForm = () => ({
   occur_at: new Date(),
   account_id: null,
   to_account_id: null,
-  category_code: '',
+  category_name: '',
   counterparty: '',
   title: '',
   tags: [],
@@ -212,7 +212,7 @@ const onTypeChange = () => {
   const d = defaultDirection(form.value.type)
   if (d) form.value.direction = d
   form.value.to_account_id = null
-  form.value.category_code = ''
+  form.value.category_name = ''
   if (!canConfigureAccrual.value) form.value.enable_accrual = false
 }
 
@@ -318,7 +318,7 @@ const submit = async () => {
         form.value.occur_at instanceof Date ? form.value.occur_at.toISOString() : form.value.occur_at
       const payload = {
         name: form.value.resource_name.trim(),
-        category_code: form.value.category_code,
+        category_name: form.value.category_name,
         unit: isByCount.value ? '次' : '天',
         total_qty: isByCount.value ? Number(form.value.total_qty) : undefined,
         total_cost: form.value.amount,

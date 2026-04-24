@@ -56,13 +56,35 @@ func InitDB() error {
 	if err := DB.AutoMigrate(
 		&model.User{},
 		&model.Account{},
+		&model.CategoryEntity{},
 		&model.Resource{},
 		&model.Transaction{},
 		&model.AccrualEntry{},
 	); err != nil {
 		return fmt.Errorf("模型迁移失败: %w", err)
 	}
+	if err := seedCategories(); err != nil {
+		return fmt.Errorf("初始化分类失败: %w", err)
+	}
 
 	log.Println("数据库初始化成功")
+	return nil
+}
+
+func seedCategories() error {
+	for _, c := range model.PresetCategories {
+		row := model.CategoryEntity{
+			Code:       c.Code,
+			ParentCode: c.ParentCode,
+			Name:       c.Name,
+			Kind:       c.Kind,
+			Icon:       c.Icon,
+			Sort:       c.Sort,
+			Source:     c.Source,
+		}
+		if err := DB.Where(model.CategoryEntity{Code: c.Code}).FirstOrCreate(&row).Error; err != nil {
+			return err
+		}
+	}
 	return nil
 }

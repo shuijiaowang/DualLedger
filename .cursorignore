@@ -1,0 +1,30 @@
+﻿# Build outputs
+web/dist/**
+service/bin/**
+service/build/**
+**/build/**
+**/tmp/**
+**/temp/**
+
+# Dependencies and caches
+web/node_modules/**
+**/.vite/**
+**/.cache/**
+**/.turbo/**
+**/.pnpm-store/**
+
+# IDE and local files
+.idea/**
+.vscode/**
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Runtime and reports
+**/coverage/**
+**/*.map
+
+# Optional personal notes (uncomment if you do not want AI to read)
+# doc/开发者我自己的文档-仅可读/**

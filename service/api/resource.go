@@ -7,6 +7,7 @@ import (
 	"SService/util"
 	"SService/util/response"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,7 @@ type ResourceApi struct{}
 type resourceCreateReq struct {
 	Name         string             `json:"name" binding:"required"`
 	CategoryCode string             `json:"category_code"`
+	CategoryName string             `json:"category_name"`
 	Unit         string             `json:"unit"`
 	TotalQty     *float64           `json:"total_qty"`
 	TotalCost    model.Money        `json:"total_cost" binding:"required"`
@@ -47,10 +49,19 @@ func (h *ResourceApi) Create(c *gin.Context) {
 	if req.PurchaseAt != nil {
 		purchase = *req.PurchaseAt
 	}
+	categoryCode := strings.TrimSpace(req.CategoryCode)
+	if categoryCode == "" && strings.TrimSpace(req.CategoryName) != "" {
+		cat, err := dao.GetCategoryByName(strings.TrimSpace(req.CategoryName))
+		if err != nil {
+			response.FailWithMessage("未知分类名称: "+req.CategoryName, c)
+			return
+		}
+		categoryCode = cat.Code
+	}
 	in := service.CreateResourceInput{
 		UserID:       uint64(claims.ID),
 		Name:         req.Name,
-		CategoryCode: req.CategoryCode,
+		CategoryCode: categoryCode,
 		Unit:         req.Unit,
 		TotalQty:     req.TotalQty,
 		TotalCost:    req.TotalCost,
