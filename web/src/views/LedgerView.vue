@@ -33,7 +33,7 @@
             全部视图（含转账/借贷/押金/退款）
           </el-checkbox>
 
-          <el-button @click="reload">刷新</el-button>
+          <el-button @click="resetAndReload">重置</el-button>
         </div>
 
         <!-- 现金流视图 -->
@@ -143,6 +143,7 @@ const displayMode = ref('table')
 const range = ref([])
 const includeCashOnly = ref(false)
 const calendarDate = ref(new Date())
+const suppressNextReload = ref(false)
 
 const accounts = ref([])
 const metaStore = useMetaStore()
@@ -192,6 +193,10 @@ const buildParams = () => {
 }
 
 const reload = async () => {
+  if (suppressNextReload.value) {
+    suppressNextReload.value = false
+    return
+  }
   if (viewMode.value === 'cashflow') {
     try {
       const res = await listTransactions({ ...buildParams(), limit: 200 })
@@ -218,6 +223,11 @@ const reload = async () => {
       /* noop */
     }
   }
+}
+
+const resetAndReload = async () => {
+  range.value = []
+  await reload()
 }
 
 const netCashflow = computed(() => {
