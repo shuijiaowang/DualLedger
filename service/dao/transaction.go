@@ -79,6 +79,31 @@ func DeleteTransaction(userID, id uint64) error {
 	})
 }
 
+// ResourceTxDirectionMap 查询资源关联主交易方向（按最新交易覆盖）
+func ResourceTxDirectionMap(userID uint64) (map[uint64]string, error) {
+	type row struct {
+		ResourceID uint64
+		Direction  string
+	}
+	var rows []row
+	if err := db.DB.Raw(`
+		SELECT resource_id, direction
+		FROM `+"`transaction`"+`
+		WHERE user_id = ? AND deleted_at IS NULL AND resource_id IS NOT NULL
+		ORDER BY id DESC
+	`, userID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[uint64]string, len(rows))
+	for _, r := range rows {
+		if _, ok := out[r.ResourceID]; ok {
+			continue
+		}
+		out[r.ResourceID] = r.Direction
+	}
+	return out, nil
+}
+
 // SumBalanceFromTx 基于 transaction 汇总指定账户净流水（用于重算 balance）
 // 返回有符号净值：IN 加 / OUT 减 / TRANSFER 按 account_id 与 to_account_id 分别双向影响
 func SumBalanceFromTx(userID, accountID uint64) (model.Money, error) {

@@ -66,6 +66,9 @@ func SetupRouter() *gin.Engine {
 		apiGroup.GET("/accrual-entries", accrualApi.List)
 		apiGroup.POST("/accrual-entries", accrualApi.Create)
 		apiGroup.DELETE("/accrual-entries/:id", accrualApi.Delete)
+
+		devDataApi := api.DevDataApi{}
+		apiGroup.POST("/dev-data/reset", devDataApi.Reset)
 	}
 
 	return r

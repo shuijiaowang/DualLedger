@@ -21,9 +21,10 @@
       <section class="card">
         <div class="card-head">
           <h3>我的账户</h3>
-          <el-button type="primary" size="small" @click="showAccountDialog = true">
-            新增账户
-          </el-button>
+          <div class="head-actions">
+            <el-button size="small" @click="handleResetDevData">一键清空数据</el-button>
+            <el-button type="primary" size="small" @click="showAccountDialog = true">新增账户</el-button>
+          </div>
         </div>
         <el-empty v-if="accounts.length === 0" description="尚无账户（注册时应自动建主账户）" />
         <el-table v-else :data="accounts" size="small" stripe>
@@ -126,6 +127,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { listAccounts, createAccount, rebuildBalance } from '@/api/account.js'
 import { listTransactions } from '@/api/transaction.js'
 import { listResources, punchResource } from '@/api/resource.js'
+import { resetDevData } from '@/api/devData.js'
 import { signedAmount } from '@/utils/money.js'
 import { useMetaStore } from '@/stores/meta.js'
 
@@ -222,6 +224,21 @@ const handleRebuild = async (row) => {
   }
 }
 
+const handleResetDevData = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '将删除当前用户所有业务数据（账户/流水/资源/权责），但保留 user 表。确定继续？',
+      '一键清空测试数据',
+      { type: 'warning' }
+    )
+    await resetDevData()
+    ElMessage.success('已清空测试数据')
+    await load()
+  } catch {
+    /* cancel or error */
+  }
+}
+
 const logout = async () => {
   await userStore.logout()
 }
@@ -278,6 +295,11 @@ const logout = async () => {
   margin-bottom: 12px;
 }
 .card-head h3 { margin: 0; }
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .more { color: #409eff; text-decoration: none; font-size: 14px; }
 .pos { color: #42b883; font-weight: 500; }
 .neg { color: #f56c6c; font-weight: 500; }

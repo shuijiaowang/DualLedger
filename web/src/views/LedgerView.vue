@@ -14,6 +14,11 @@
             <el-radio-button value="accrual">权责视图</el-radio-button>
           </el-radio-group>
 
+          <el-radio-group v-model="displayMode">
+            <el-radio-button value="table">表格</el-radio-button>
+            <el-radio-button value="calendar">日历</el-radio-button>
+          </el-radio-group>
+
           <el-date-picker
             v-model="range"
             type="daterange"
@@ -33,7 +38,7 @@
 
         <!-- 现金流视图 -->
         <div v-if="viewMode === 'cashflow'">
-          <el-table :data="cashRows" stripe size="small">
+          <el-table v-if="displayMode === 'table'" :data="cashRows" stripe size="small">
             <el-table-column label="时间" width="170">
               <template #default="{ row }">{{ fmt(row.occur_at) }}</template>
             </el-table-column>
@@ -62,6 +67,16 @@
               </template>
             </el-table-column>
           </el-table>
+          <el-calendar v-else v-model="calendarDate">
+            <template #date-cell="{ data }">
+              <div class="day-cell" @click="jumpToDay(data.day)">
+                <div class="day-num">{{ data.day.slice(-2) }}</div>
+                <div class="day-sum">总 {{ dayStat(data.day).total }}</div>
+                <div class="day-pos">+ {{ dayStat(data.day).pos }}</div>
+                <div class="day-neg">- {{ dayStat(data.day).neg }}</div>
+              </div>
+            </template>
+          </el-calendar>
           <div class="summary">
             共 {{ total }} 条 · 区间净流 {{ netCashflow }}
           </div>
@@ -69,7 +84,7 @@
 
         <!-- 权责视图 -->
         <div v-else>
-          <el-table :data="accrualRows" stripe size="small">
+          <el-table v-if="displayMode === 'table'" :data="accrualRows" stripe size="small">
             <el-table-column label="时间" width="170">
               <template #default="{ row }">{{ fmt(row.accrue_at) }}</template>
             </el-table-column>
@@ -91,10 +106,20 @@
             </el-table-column>
             <el-table-column label="金额" width="110" align="right">
               <template #default="{ row }">
-                <span :class="row.amount.startsWith('-') ? 'neg' : 'pos'">{{ row.amount }}</span>
+                <span :class="accrualAmountClass(row)">{{ accrualAmountText(row) }}</span>
               </template>
             </el-table-column>
           </el-table>
+          <el-calendar v-else v-model="calendarDate">
+            <template #date-cell="{ data }">
+              <div class="day-cell" @click="jumpToDay(data.day)">
+                <div class="day-num">{{ data.day.slice(-2) }}</div>
+                <div class="day-sum">总 {{ dayStat(data.day).total }}</div>
+                <div class="day-pos">+ {{ dayStat(data.day).pos }}</div>
+                <div class="day-neg">- {{ dayStat(data.day).neg }}</div>
+              </div>
+            </template>
+          </el-calendar>
           <div class="summary">
             共 {{ accrualRows.length }} 条 · 合计 {{ accrualTotal }}
           </div>
@@ -114,8 +139,10 @@ import { signedAmount, isCashflowOnly, normalizeAmount } from '@/utils/money.js'
 import { useMetaStore } from '@/stores/meta.js'
 
 const viewMode = ref('cashflow')
+const displayMode = ref('table')
 const range = ref([])
 const includeCashOnly = ref(false)
+const calendarDate = ref(new Date())
 
 const accounts = ref([])
 const metaStore = useMetaStore()
@@ -137,6 +164,23 @@ const sourceLabel = (s) =>
   ({ DYNAMIC_VIRTUAL: '规则动态', ACCRUAL_REAL: '真实事件', TX_IMMEDIATE: '即买即耗' }[s] || s)
 const sourceTag = (s) =>
   ({ DYNAMIC_VIRTUAL: 'info', ACCRUAL_REAL: 'success', TX_IMMEDIATE: '' }[s] || '')
+
+const categoryKind = (code) => metaStore.categories.find((c) => c.code === code)?.kind
+const accrualSignedNumber = (row) => {
+  const abs = Math.abs(Number(row?.amount || 0))
+  if (row?.direction === 'OUT') return -abs
+  if (row?.direction === 'IN') return abs
+  const kind = categoryKind(row?.category_code)
+  if (kind === 'EXPENSE') return -abs
+  if (kind === 'INCOME') return abs
+  return Number(row?.amount || 0)
+}
+const accrualAmountText = (row) => {
+  const signed = accrualSignedNumber(row)
+  const text = normalizeAmount(Math.abs(signed))
+  return signed < 0 ? `-${text}` : text
+}
+const accrualAmountClass = (row) => (accrualSignedNumber(row) < 0 ? 'neg' : 'pos')
 
 const buildParams = () => {
   const params = {}
@@ -189,9 +233,50 @@ const netCashflow = computed(() => {
 
 const accrualTotal = computed(() => {
   let sum = 0
-  for (const r of accrualRows.value) sum += Number(r.amount)
+  for (const r of accrualRows.value) sum += accrualSignedNumber(r)
   return normalizeAmount(sum)
 })
+
+const dayStats = computed(() => {
+  const map = new Map()
+  if (viewMode.value === 'cashflow') {
+    for (const r of cashRows.value) {
+      const day = String(r.occur_at || '').slice(0, 10)
+      if (!day) continue
+      if (!map.has(day)) map.set(day, { pos: 0, neg: 0 })
+      const stat = map.get(day)
+      const amt = Number(r.amount || 0)
+      if (r.direction === 'IN') stat.pos += amt
+      else if (r.direction === 'OUT') stat.neg += amt
+    }
+  } else {
+    for (const r of accrualRows.value) {
+      const day = String(r.accrue_at || '').slice(0, 10)
+      if (!day) continue
+      if (!map.has(day)) map.set(day, { pos: 0, neg: 0 })
+      const stat = map.get(day)
+      const amt = accrualSignedNumber(r)
+      if (amt >= 0) stat.pos += amt
+      else stat.neg += Math.abs(amt)
+    }
+  }
+  return map
+})
+
+const dayStat = (day) => {
+  const stat = dayStats.value.get(day) || { pos: 0, neg: 0 }
+  return {
+    pos: normalizeAmount(stat.pos),
+    neg: normalizeAmount(stat.neg),
+    total: normalizeAmount(stat.pos - stat.neg)
+  }
+}
+
+const jumpToDay = async (day) => {
+  range.value = [day, day]
+  displayMode.value = 'table'
+  await reload()
+}
 
 const del = async (row) => {
   try {
@@ -242,4 +327,30 @@ onMounted(async () => {
 .pos { color: #42b883; font-weight: 500; }
 .neg { color: #f56c6c; font-weight: 500; }
 .tag-chip { margin-right: 4px; }
+.day-cell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.day-num {
+  font-size: 12px;
+  color: #606266;
+}
+.day-sum {
+  font-size: 12px;
+  font-weight: 600;
+  color: #303133;
+}
+.day-pos {
+  font-size: 11px;
+  color: #42b883;
+}
+.day-neg {
+  font-size: 11px;
+  color: #f56c6c;
+}
 </style>

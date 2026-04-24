@@ -11,6 +11,7 @@ type ApiGroup struct {
 	AccrualApi
 	MetaApi
 	CategoryApi
+	DevDataApi
 }
 
 var (
@@ -21,4 +22,5 @@ var (
 	accrualViewSvc  = service.AccrualViewService{}
 	metaService     = service.MetaService{}
 	categoryService = service.CategoryService{}
+	devDataService  = service.DevDataService{}
 )

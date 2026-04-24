@@ -8,14 +8,22 @@
 
     <main class="content">
       <el-card>
-        <el-table :data="rows" size="small" stripe>
+        <el-table
+          :data="treeRows"
+          size="small"
+          stripe
+          row-key="code"
+          :tree-props="{ children: 'children' }"
+          :default-expand-all="false"
+        >
           <el-table-column prop="name" label="名称" min-width="120" />
           <el-table-column prop="kind" label="类型" width="110" />
           <el-table-column prop="parent_name" label="父级" min-width="120" />
           <el-table-column prop="sort" label="排序" width="90" />
           <el-table-column prop="source" label="来源" width="90" />
-          <el-table-column label="操作" width="140">
+          <el-table-column label="操作" width="220">
             <template #default="{ row }">
+              <el-button link size="small" type="primary" @click="openCreateChild(row)">新增子级</el-button>
               <el-button link size="small" @click="openEdit(row)">编辑</el-button>
               <el-button link size="small" type="danger" @click="remove(row)">删除</el-button>
             </template>
@@ -58,7 +66,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createCategory, deleteCategory, listCategories, updateCategory } from '@/api/category.js'
 import { useMetaStore } from '@/stores/meta.js'
@@ -80,6 +88,22 @@ const withParentName = (list) => {
   }))
 }
 
+const treeRows = computed(() => {
+  const byCode = new Map()
+  const roots = []
+  rows.value.forEach((row) => {
+    byCode.set(row.code, { ...row, children: [] })
+  })
+  byCode.forEach((row) => {
+    if (row.parent_code && byCode.has(row.parent_code)) {
+      byCode.get(row.parent_code).children.push(row)
+    } else {
+      roots.push(row)
+    }
+  })
+  return roots
+})
+
 const load = async () => {
   const res = await listCategories()
   const list = res?.data || []
@@ -90,6 +114,16 @@ const load = async () => {
 const openCreate = () => {
   editingId.value = null
   form.value = emptyForm()
+  showDialog.value = true
+}
+
+const openCreateChild = (row) => {
+  editingId.value = null
+  form.value = {
+    ...emptyForm(),
+    kind: row.kind || 'EXPENSE',
+    parent_name: row.name || ''
+  }
   showDialog.value = true
 }
 

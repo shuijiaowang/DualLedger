@@ -14,6 +14,7 @@ type ViewEntry struct {
 	Source        string    `json:"source"` // DYNAMIC_VIRTUAL / ACCRUAL_REAL / TX_IMMEDIATE
 	AccrueAt      time.Time `json:"accrue_at"`
 	Amount        string    `json:"amount"` // 有符号；消耗为正，冲减为负
+	Direction     string    `json:"direction,omitempty"`
 	CategoryCode  string    `json:"category_code,omitempty"`
 	ResourceID    *uint64   `json:"resource_id,omitempty"`
 	TransactionID *uint64   `json:"transaction_id,omitempty"`
@@ -45,9 +46,13 @@ func (s *AccrualViewService) Query(q ViewQuery) ([]ViewEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	resourceDirectionMap, err := dao.ResourceTxDirectionMap(q.UserID)
+	if err != nil {
+		return nil, err
+	}
 	for i := range resources {
 		r := &resources[i]
-		rows := generateDynamicRows(r, q.From, q.To)
+		rows := generateDynamicRows(r, q.From, q.To, resourceDirectionMap[uint64(r.ID)])
 		out = append(out, rows...)
 	}
 
@@ -73,6 +78,7 @@ func (s *AccrualViewService) Query(q ViewQuery) ([]ViewEntry, error) {
 			Source:       "ACCRUAL_REAL",
 			AccrueAt:     e.AccrueAt,
 			Amount:       model.Money(e.Amount).String(),
+			Direction:    resourceDirectionMap[*e.ResourceID],
 			CategoryCode: e.CategoryCode,
 			ResourceID:   rid,
 			RealEntryID:  &id,
@@ -116,6 +122,7 @@ func (s *AccrualViewService) Query(q ViewQuery) ([]ViewEntry, error) {
 				Source:        "TX_IMMEDIATE",
 				AccrueAt:      t.OccurAt,
 				Amount:        signedAmount,
+				Direction:     t.Direction,
 				CategoryCode:  t.CategoryCode,
 				TransactionID: &id,
 				Tags:          tagsFromExt(t.Ext),
@@ -132,7 +139,7 @@ func (s *AccrualViewService) Query(q ViewQuery) ([]ViewEntry, error) {
 
 // generateDynamicRows 按规则生成动态虚拟行
 // 约定：消耗/产出 amount 记为正数；INCOME 资源（工资包）也记正数，由前端按分类区分收支。
-func generateDynamicRows(r *model.Resource, from, to time.Time) []ViewEntry {
+func generateDynamicRows(r *model.Resource, from, to time.Time, direction string) []ViewEntry {
 	if r.AmortizeRule.Type != model.AmortizeFixedPeriod &&
 		r.AmortizeRule.Type != model.AmortizeDynamicByDay {
 		return nil
@@ -211,6 +218,7 @@ func generateDynamicRows(r *model.Resource, from, to time.Time) []ViewEntry {
 			Source:       "DYNAMIC_VIRTUAL",
 			AccrueAt:     d,
 			Amount:       perDayStr,
+			Direction:    direction,
 			CategoryCode: r.CategoryCode,
 			ResourceID:   &rid,
 			Tags:         tagsFromExt(r.Ext),
