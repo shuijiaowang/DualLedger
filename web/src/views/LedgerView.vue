@@ -131,7 +131,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import {dayjs, ElMessage, ElMessageBox} from 'element-plus'
 import { listTransactions, deleteTransaction } from '@/api/transaction.js'
 import { listAccounts } from '@/api/account.js'
 import { accrualView } from '@/api/accrual.js'
@@ -207,8 +207,8 @@ const reload = async () => {
       const now = new Date()
       const start = new Date(now.getFullYear(), now.getMonth(), 1)
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-      p.from = start.toISOString().slice(0, 10)
-      p.to = end.toISOString().slice(0, 10)
+      p.from = dayjs().startOf('month').format('YYYY-MM-DD')
+      p.to = dayjs().endOf('month').format('YYYY-MM-DD')
     }
     if (includeCashOnly.value) p.include_cashonly = 'true'
     try {
@@ -285,18 +285,7 @@ const showDayTotal = (day) => dayStatNumber(day).total !== 0
 const showDayPos = (day) => dayStatNumber(day).pos !== 0
 const showDayNeg = (day) => dayStatNumber(day).neg !== 0
 
-const formatDateLocal = (d) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-const nextDay = (day) => {
-  const d = new Date(`${day}T00:00:00`)
-  d.setDate(d.getDate() + 1)
-  return formatDateLocal(d)
-}
+const nextDay = (day) => dayjs(day).add(1, 'day').format('YYYY-MM-DD')
 
 const jumpToDay = async (day) => {
   range.value = [day, nextDay(day)]
